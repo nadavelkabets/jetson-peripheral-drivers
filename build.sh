@@ -107,7 +107,7 @@ tar -xjf kernel_src.tbz2
 popd > /dev/null
 
 # Locate exact kernel source directory
-KERNEL_SRC_DIR=$(find "$TMPDIR/Linux_for_Tegra/source/public" -maxdepth 1 -type d -name 'kernel-*' | head -n 1)
+KERNEL_SRC_DIR=$(find "$TMPDIR/Linux_for_Tegra/source/public/kernel" -maxdepth 1 -type d -name 'kernel-*' | head -n 1)
 if [[ -z "$KERNEL_SRC_DIR" ]]; then
   echo "Error: Kernel source directory not found"
   exit 1
