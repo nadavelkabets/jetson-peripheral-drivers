@@ -1,5 +1,6 @@
 # jetson-peripheral-drivers
 A bash utility to compile and setup Jetson Linux kernel modules for adc, pwm and iio peripheries
+
 In future releases, **Device Tree Overlays** will be included to automate board configuration as well.
 
 ## build.sh
