@@ -127,9 +127,9 @@ scripts/config --set-str CONFIG_LOCALVERSION "-tegra"
 # Define configuration functions for peripherals
 configure_pwm_pca9685() {
   echo "Configuring I2C and PCA9685 support in kernel config..."
-  scripts/config --set-val CONFIG_I2C 1
-  scripts/config --set-val CONFIG_I2C_CHARDEV 1
-  scripts/config --set-val CONFIG_PWM_PCA9685 1
+  scripts/config --enable CONFIG_I2C
+  scripts/config --enable CONFIG_I2C_CHARDEV
+  scripts/config --module CONFIG_PWM_PCA9685
 }
 
 # Invoke configuration for each selected peripheral
