@@ -91,6 +91,9 @@ fi
 echo "Selected peripherals: ${SELECTED[*]}"
 echo "Using output directory: $OUTDIR"
 
+# Intall dependencies
+sudo apt install -y tar build-essential ncurses-dev xz-utils libssl-dev bc flex libelf-dev bison
+
 # Create temporary workspace
 echo "Creating temporary workspace..."
 TMPDIR=$(mktemp -d)
