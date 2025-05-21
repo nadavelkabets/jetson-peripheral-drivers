@@ -1,5 +1,6 @@
 # jetson-peripheral-drivers
 A bash utility to compile and setup Jetson Linux kernel modules for adc, pwm and iio peripheries
+In future releases, **Device Tree Overlays** will be included to automate board configuration as well.
 
 ## build.sh
 
@@ -17,6 +18,8 @@ A helper script to build Jetson Linux kernel modules for selected peripherals (c
 3. In the table, download **Driver Package (BSP) Sources** (e.g., `public_sources.tbz2`).
 4. Save the tarball somewhere accessible.
 
+> **⚠️ Important Note**
+> This script must currently be executed **on the Jetson device itself**; cross-compilation is not supported.
 ### Usage
 
 ```bash
@@ -26,3 +29,56 @@ A helper script to build Jetson Linux kernel modules for selected peripherals (c
 * `--pwm-pca9685` : Compile the PWM PCA9685 kernel module.
 * `--output-dir DIR`: (Optional) Directory to copy the built `.ko` file (defaults to current directory).
 * `<public_sources.tbz2>`: The downloaded BSP sources tarball.
+
+### Installation and Testing
+
+After building, the module `.ko` file should be placed into the kernel modules tree for your running kernel:
+
+```bash
+sudo install -m 644 pwm-pca9685.ko /lib/modules/$(uname -r)/kernel/drivers/pwm/
+```
+
+Then update the module dependency list:
+
+```bash
+sudo depmod -a
+```
+
+To verify the module is available (either by filesystem or via modprobe):
+
+```bash
+modprobe -l | grep pwm_pca9685
+```
+
+#### Loading and Listing Modules
+
+* **Load the module**:
+
+  ```bash
+  sudo modprobe pwm-pca9685
+  ```
+* **Check that it’s loaded**:
+
+  ```bash
+  lsmod | grep pwm_pca9685
+  ```
+* **View module information**:
+
+  ```bash
+  modinfo pwm-pca9685
+  ```
+
+### Debugging
+
+If you encounter issues loading or running the module, check:
+
+* Kernel messages: `dmesg | tail -n 50`
+* System logs: `journalctl -k --since "5 minutes ago"`
+* Driver‑specific logs: filter for the driver name, e.g.:
+
+  ```bash
+  dmesg | grep -i pca9685
+  journalctl -k | grep -i pca9685
+  ```
+
+These commands can help you identify configuration errors, missing dependencies, or driver load failures.
