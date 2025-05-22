@@ -24,10 +24,11 @@ A helper script to build Jetson Linux kernel modules for selected peripherals (c
 ### Usage
 
 ```bash
-./build.sh [--pwm-pca9685] [--output-dir DIR] <public_sources.tbz2>
+./build.sh [--pwm-pca9685] [--ads1015] [--output-dir DIR] <public_sources.tbz2>
 ```
 
 * `--pwm-pca9685` : Compile the PWM PCA9685 kernel module.
+* `--ads1015` : Compile the IIO ADC ADS1015 kernel module.
 * `--output-dir DIR`: (Optional) Directory to copy the built `.ko` file (defaults to current directory).
 * `<public_sources.tbz2>`: The downloaded BSP sources tarball.
 

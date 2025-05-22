@@ -3,12 +3,12 @@
 # A utility to build Jetson Linux kernel module drivers for specified peripherals.
 # Currently supports PWM PCA9685.
 # Usage:
-#   ./build.sh [--pwm-pca9685] [--output-dir DIR] <public_sources.tbz2>
+#   ./build.sh [--pwm-pca9685] [--ads1015] [--output-dir DIR] <public_sources.tbz2>
 
 set -euo pipefail
 
 # Supported peripherals
-SUPPORTED=(pwm-pca9685)
+SUPPORTED=(pwm-pca9685 ads1015)
 # Selected peripherals
 declare -a SELECTED=()
 
@@ -17,7 +17,7 @@ OUTDIR="$PWD"
 
 # Print usage information
 usage() {
-  echo "Usage: $0 [--pwm-pca9685] [--output-dir DIR] <public_sources.tbz2>"
+  echo "Usage: $0 [options] <public_sources.tbz2>"
   echo
   echo "Options:"
   for periph in "${SUPPORTED[@]}"; do
@@ -53,7 +53,7 @@ while [[ $# -gt 1 ]]; do
       # Exact match against supported peripherals
       for s in "${SUPPORTED[@]}"; do
         if [[ "$s" == "$opt" ]]; then
-          SELECTED+=("${opt}")
+          SELECTED+=("$opt")
           shift
           continue 2
         fi
@@ -121,22 +121,29 @@ echo "Configuring kernel at $KERNEL_SRC_DIR..."
 pushd "$KERNEL_SRC_DIR" > /dev/null
 # Initial default config
 make olddefconfig
-# Set version prefix via kernel config
+# Set version prefix
 scripts/config --set-str CONFIG_LOCALVERSION "-tegra"
 
 # Define configuration functions for peripherals
 configure_pwm_pca9685() {
-  echo "Configuring I2C and PCA9685 support in kernel config..."
+  echo "Configuring I2C and PCA9685 support..."
   scripts/config --enable CONFIG_I2C
   scripts/config --enable CONFIG_I2C_CHARDEV
   scripts/config --module CONFIG_PWM_PCA9685
 }
 
+configure_ads1015() {
+  echo "Configuring IIO and ADS1015 support..."
+  scripts/config --enable CONFIG_IIO
+  scripts/config --enable CONFIG_IIO_CHARDEV
+  scripts/config --module CONFIG_IIO_ADS1015
+}
+
 # Invoke configuration for each selected peripheral
 for periph in "${SELECTED[@]}"; do
-  func="configure_${periph//-/_}"
-  if declare -f "$func" >/dev/null; then
-    $func
+  cfg_fn="configure_${periph//-/_}"
+  if declare -f "$cfg_fn" >/dev/null; then
+    $cfg_fn
   else
     echo "Warning: No configure function defined for $periph"
   fi
@@ -158,11 +165,20 @@ compile_pwm_pca9685() {
   echo "pwm-pca9685.ko has been copied to $OUTDIR"
 }
 
+compile_ads1015() {
+  echo "Compiling ADS1015 ADC module..."
+  pushd "$KERNEL_SRC_DIR" > /dev/null
+  make M=drivers/iio/adc
+  cp drivers/iio/adc/ads1015.ko "$OUTDIR"
+  popd > /dev/null
+  echo "ads1015.ko has been copied to $OUTDIR"
+}
+
 # Build each selected peripheral
 for periph in "${SELECTED[@]}"; do
-  func="compile_${periph//-/_}"
-  if declare -f "$func" >/dev/null; then
-    $func
+  build_fn="compile_${periph//-/_}"
+  if declare -f "$build_fn" >/dev/null; then
+    $build_fn
   else
     echo "Warning: No compile function defined for $periph"
   fi
