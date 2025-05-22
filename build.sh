@@ -159,7 +159,7 @@ popd > /dev/null
 compile_pwm_pca9685() {
   echo "Compiling PWM PCA9685 module..."
   pushd "$KERNEL_SRC_DIR" > /dev/null
-  make M=drivers/pwm
+  make drivers/pwm/pwm-pca9685.ko
   cp drivers/pwm/pwm-pca9685.ko "$OUTDIR"
   popd > /dev/null
   echo "pwm-pca9685.ko has been copied to $OUTDIR"
@@ -168,8 +168,8 @@ compile_pwm_pca9685() {
 compile_ads1015() {
   echo "Compiling ADS1015 ADC module..."
   pushd "$KERNEL_SRC_DIR" > /dev/null
-  make M=drivers/iio/adc
-  cp drivers/iio/adc/ads1015.ko "$OUTDIR"
+  make drivers/iio/adc/ti-ads1015.ko
+  cp drivers/iio/adc/ti-ads1015.ko "$OUTDIR"
   popd > /dev/null
   echo "ads1015.ko has been copied to $OUTDIR"
 }
