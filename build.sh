@@ -3,12 +3,12 @@
 # A utility to build Jetson Linux kernel module drivers for specified peripherals.
 # Currently supports PWM PCA9685.
 # Usage:
-#   ./build.sh [--pwm-pca9685] [--ads1015] [--output-dir DIR] <public_sources.tbz2>
+#   ./build.sh [--pwm-pca9685] [--ads1015] [--sc16is7xx] [--output-dir DIR] <public_sources.tbz2>
 
 set -euo pipefail
 
 # Supported peripherals
-SUPPORTED=(pwm-pca9685 ads1015)
+SUPPORTED=(pwm-pca9685 ads1015 sc16is7xx)
 # Selected peripherals
 declare -a SELECTED=()
 
@@ -139,6 +139,16 @@ configure_ads1015() {
   scripts/config --module CONFIG_IIO_ADS1015
 }
 
+configure_sc16is7xx() {
+  echo "Configuring SC16IS7XX UART support..."
+  scripts/config --enable CONFIG_SERIAL_CORE
+  scripts/config --enable CONFIG_I2C
+  scripts/config --enable CONFIG_SPI
+  scripts/config --enable CONFIG_SERIAL_SC16IS7XX
+  scripts/config --module CONFIG_SERIAL_SC16IS7XX_I2C
+  scripts/config --module CONFIG_SERIAL_SC16IS7XX_SPI
+}
+
 # Invoke configuration for each selected peripheral
 for periph in "${SELECTED[@]}"; do
   cfg_fn="configure_${periph//-/_}"
@@ -172,6 +182,15 @@ compile_ads1015() {
   cp drivers/iio/adc/ti-ads1015.ko "$OUTDIR"
   popd > /dev/null
   echo "ads1015.ko has been copied to $OUTDIR"
+}
+
+compile_sc16is7xx() {
+  echo "Compiling SC16IS7XX UART module..."
+  pushd "$KERNEL_SRC_DIR" > /dev/null
+  make drivers/tty/serial/sc16is7xx.ko
+  cp drivers/tty/serial/sc16is7xx.ko "$OUTDIR"
+  popd > /dev/null
+  echo "sc16is7xx.ko has been copied to $OUTDIR"
 }
 
 # Build each selected peripheral
