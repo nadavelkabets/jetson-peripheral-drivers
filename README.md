@@ -19,8 +19,15 @@ A helper script to build Jetson Linux kernel modules for selected peripherals (c
 3. In the table, download **Driver Package (BSP) Sources** (e.g., `public_sources.tbz2`).
 4. Save the tarball somewhere accessible.
 
-> **⚠️ Important Note**
-> This script must currently be executed **on the Jetson device itself**; cross-compilation is not supported.
+### Cross-Compilation Support
+
+The script automatically detects the host architecture:
+
+* **x86_64 (Ubuntu/Debian)**: Enables cross-compilation for ARM64. The script will automatically install `gcc-aarch64-linux-gnu` and configure the build with `ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-`.
+* **aarch64 (Jetson device)**: Uses native compilation.
+
+This allows you to build Jetson kernel modules on a faster x86_64 development machine and then transfer the `.ko` files to your Jetson device.
+
 ### Usage
 
 ```bash
