@@ -91,8 +91,24 @@ fi
 echo "Selected peripherals: ${SELECTED[*]}"
 echo "Using output directory: $OUTDIR"
 
-# Intall dependencies
-sudo apt install -y tar build-essential ncurses-dev xz-utils libssl-dev bc flex libelf-dev bison
+# Detect host architecture and configure cross-compilation if needed
+HOST_ARCH=$(uname -m)
+MAKE_OPTS=""
+
+if [[ "$HOST_ARCH" == "x86_64" ]]; then
+  echo "Detected x86_64 host - enabling cross-compilation for ARM64 (aarch64)"
+  MAKE_OPTS="ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-"
+  CROSS_COMPILE_PKGS="gcc-aarch64-linux-gnu"
+elif [[ "$HOST_ARCH" == "aarch64" ]]; then
+  echo "Detected ARM64 host - native compilation"
+  CROSS_COMPILE_PKGS=""
+else
+  echo "Error: Unsupported host architecture '$HOST_ARCH'. Only x86_64 and aarch64 are supported."
+  exit 1
+fi
+
+# Install dependencies
+sudo apt install -y tar build-essential ncurses-dev xz-utils libssl-dev bc flex libelf-dev bison $CROSS_COMPILE_PKGS
 
 # Create temporary workspace
 echo "Creating temporary workspace..."
@@ -120,7 +136,7 @@ fi
 echo "Configuring kernel at $KERNEL_SRC_DIR..."
 pushd "$KERNEL_SRC_DIR" > /dev/null
 # Initial default config
-make olddefconfig
+make $MAKE_OPTS olddefconfig
 # Set version prefix
 scripts/config --set-str CONFIG_LOCALVERSION "-tegra"
 
@@ -160,16 +176,16 @@ for periph in "${SELECTED[@]}"; do
 done
 
 # Re-run default config to apply changes
-make olddefconfig
-make prepare
-make modules_prepare
+make $MAKE_OPTS olddefconfig
+make $MAKE_OPTS prepare
+make $MAKE_OPTS modules_prepare
 popd > /dev/null
 
 # Define compile functions for peripherals
 compile_pwm_pca9685() {
   echo "Compiling PWM PCA9685 module..."
   pushd "$KERNEL_SRC_DIR" > /dev/null
-  make drivers/pwm/pwm-pca9685.ko
+  make $MAKE_OPTS drivers/pwm/pwm-pca9685.ko
   cp drivers/pwm/pwm-pca9685.ko "$OUTDIR"
   popd > /dev/null
   echo "pwm-pca9685.ko has been copied to $OUTDIR"
@@ -178,7 +194,7 @@ compile_pwm_pca9685() {
 compile_ads1015() {
   echo "Compiling ADS1015 ADC module..."
   pushd "$KERNEL_SRC_DIR" > /dev/null
-  make drivers/iio/adc/ti-ads1015.ko
+  make $MAKE_OPTS drivers/iio/adc/ti-ads1015.ko
   cp drivers/iio/adc/ti-ads1015.ko "$OUTDIR"
   popd > /dev/null
   echo "ads1015.ko has been copied to $OUTDIR"
@@ -187,7 +203,7 @@ compile_ads1015() {
 compile_sc16is7xx() {
   echo "Compiling SC16IS7XX UART module..."
   pushd "$KERNEL_SRC_DIR" > /dev/null
-  make drivers/tty/serial/sc16is7xx.ko
+  make $MAKE_OPTS drivers/tty/serial/sc16is7xx.ko
   cp drivers/tty/serial/sc16is7xx.ko "$OUTDIR"
   popd > /dev/null
   echo "sc16is7xx.ko has been copied to $OUTDIR"
