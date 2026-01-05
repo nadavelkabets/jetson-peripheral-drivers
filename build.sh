@@ -103,8 +103,8 @@ elif [[ "$HOST_ARCH" == "aarch64" ]]; then
   echo "Detected ARM64 host - native compilation"
   CROSS_COMPILE_PKGS=""
 else
-  echo "Warning: Unsupported host architecture '$HOST_ARCH', attempting native compilation"
-  CROSS_COMPILE_PKGS=""
+  echo "Error: Unsupported host architecture '$HOST_ARCH'. Only x86_64 and aarch64 are supported."
+  exit 1
 fi
 
 # Install dependencies
