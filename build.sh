@@ -2,19 +2,21 @@
 # build.sh
 # A utility to build Jetson Linux kernel module drivers for specified peripherals.
 # Currently supports PWM PCA9685.
+# Find your jetson linux version here https://developer.nvidia.com/embedded/jetson-linux-archive
+# And download the "Driver Package (BSP) Sources"
 # Usage:
 #   ./build.sh [--pwm-pca9685] [--ads1015] [--sc16is7xx] [--output-dir DIR] <public_sources.tbz2>
-
+ 
 set -euo pipefail
-
+ 
 # Supported peripherals
 SUPPORTED=(pwm-pca9685 ads1015 sc16is7xx)
 # Selected peripherals
 declare -a SELECTED=()
-
+ 
 # Default output directory
 OUTDIR="$PWD"
-
+ 
 # Print usage information
 usage() {
   echo "Usage: $0 [options] <public_sources.tbz2>"
@@ -27,12 +29,12 @@ usage() {
   echo "  --help              Show this help message and exit"
   exit 1
 }
-
+ 
 # Ensure at least one argument
 if [[ $# -lt 1 ]]; then
   usage
 fi
-
+ 
 # Parse options until only the tar file remains
 while [[ $# -gt 1 ]]; do
   case "$1" in
@@ -67,34 +69,34 @@ while [[ $# -gt 1 ]]; do
       ;;
   esac
 done
-
+ 
 # Remaining argument is the tar file
 TARFILE="$1"
 if [[ ! -f "$TARFILE" ]]; then
   echo "Error: File '$TARFILE' not found"
   exit 1
 fi
-
+ 
 # Validate tar file
 if ! tar -tjf "$TARFILE" >/dev/null 2>&1; then
   echo "Error: '$TARFILE' is not a valid bzip2 tar archive"
   exit 1
 fi
-
+ 
 # Ensure at least one peripheral was selected
 if [[ ${#SELECTED[@]} -eq 0 ]]; then
   echo "Error: No peripheral specified"
   usage
 fi
-
+ 
 # Show configuration summary
 echo "Selected peripherals: ${SELECTED[*]}"
 echo "Using output directory: $OUTDIR"
-
+ 
 # Detect host architecture and configure cross-compilation if needed
 HOST_ARCH=$(uname -m)
 MAKE_OPTS=""
-
+ 
 if [[ "$HOST_ARCH" == "x86_64" ]]; then
   echo "Detected x86_64 host - enabling cross-compilation for ARM64 (aarch64)"
   MAKE_OPTS="ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-"
@@ -106,32 +108,57 @@ else
   echo "Error: Unsupported host architecture '$HOST_ARCH'. Only x86_64 and aarch64 are supported."
   exit 1
 fi
-
+ 
 # Install dependencies
-sudo apt install -y tar build-essential ncurses-dev xz-utils libssl-dev bc flex libelf-dev bison $CROSS_COMPILE_PKGS
-
+if command -v apt-get >/dev/null 2>&1; then
+  if sudo -n true 2>/dev/null; then
+    sudo apt-get update
+    sudo apt-get install -y tar build-essential ncurses-dev xz-utils libssl-dev bc flex libelf-dev bison $CROSS_COMPILE_PKGS
+  elif [[ -t 0 ]]; then
+    if ! sudo -v; then
+      echo "Error: sudo is required to install dependencies with apt-get"
+      exit 1
+    fi
+    sudo apt-get update
+    sudo apt-get install -y tar build-essential ncurses-dev xz-utils libssl-dev bc flex libelf-dev bison $CROSS_COMPILE_PKGS
+  else
+    echo "Warning: sudo is unavailable in this environment; skipping dependency install"
+    missing=()
+    for cmd in tar make gcc bison flex bc xz; do
+      command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
+    done
+    if [[ "$HOST_ARCH" == "x86_64" ]]; then
+      command -v aarch64-linux-gnu-gcc >/dev/null 2>&1 || missing+=("aarch64-linux-gnu-gcc")
+    fi
+    if [[ ${#missing[@]} -gt 0 ]]; then
+      echo "Error: Missing required tools: ${missing[*]}"
+      exit 1
+    fi
+  fi
+fi
+ 
 # Create temporary workspace
 echo "Creating temporary workspace..."
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
-
+ 
 # Extract public sources
 echo "Extracting public sources to '$TMPDIR'..."
 tar -xjf "$TARFILE" -C "$TMPDIR"
-
+ 
 # Extract kernel sources
 echo "Extracting kernel sources..."
-pushd "$TMPDIR/Linux_for_Tegra/source/public" > /dev/null
+pushd "$TMPDIR/Linux_for_Tegra/source" > /dev/null
 tar -xjf kernel_src.tbz2
 popd > /dev/null
-
+ 
 # Locate exact kernel source directory
-KERNEL_SRC_DIR=$(find "$TMPDIR/Linux_for_Tegra/source/public/kernel" -maxdepth 1 -type d -name 'kernel-*' | head -n 1)
+KERNEL_SRC_DIR=$(find "$TMPDIR/Linux_for_Tegra/source/kernel" -maxdepth 1 -type d -name 'kernel-*' | head -n 1)
 if [[ -z "$KERNEL_SRC_DIR" ]]; then
   echo "Error: Kernel source directory not found"
   exit 1
 fi
-
+ 
 # Enter kernel source directory
 echo "Configuring kernel at $KERNEL_SRC_DIR..."
 pushd "$KERNEL_SRC_DIR" > /dev/null
@@ -139,7 +166,7 @@ pushd "$KERNEL_SRC_DIR" > /dev/null
 make $MAKE_OPTS olddefconfig
 # Set version prefix
 scripts/config --set-str CONFIG_LOCALVERSION "-tegra"
-
+ 
 # Define configuration functions for peripherals
 configure_pwm_pca9685() {
   echo "Configuring I2C and PCA9685 support..."
@@ -147,24 +174,25 @@ configure_pwm_pca9685() {
   scripts/config --enable CONFIG_I2C_CHARDEV
   scripts/config --module CONFIG_PWM_PCA9685
 }
-
+ 
 configure_ads1015() {
   echo "Configuring IIO and ADS1015 support..."
   scripts/config --enable CONFIG_IIO
   scripts/config --enable CONFIG_IIO_CHARDEV
   scripts/config --module CONFIG_IIO_ADS1015
 }
-
+ 
 configure_sc16is7xx() {
   echo "Configuring SC16IS7XX UART support..."
   scripts/config --enable CONFIG_SERIAL_CORE
   scripts/config --enable CONFIG_I2C
   scripts/config --enable CONFIG_SPI
-  scripts/config --enable CONFIG_SERIAL_SC16IS7XX
-  scripts/config --module CONFIG_SERIAL_SC16IS7XX_I2C
-  scripts/config --module CONFIG_SERIAL_SC16IS7XX_SPI
+  scripts/config --enable CONFIG_SPI_MASTER
+  scripts/config --module CONFIG_SERIAL_SC16IS7XX
+  scripts/config --enable CONFIG_SERIAL_SC16IS7XX_I2C
+  scripts/config --enable CONFIG_SERIAL_SC16IS7XX_SPI
 }
-
+ 
 # Invoke configuration for each selected peripheral
 for periph in "${SELECTED[@]}"; do
   cfg_fn="configure_${periph//-/_}"
@@ -174,41 +202,41 @@ for periph in "${SELECTED[@]}"; do
     echo "Warning: No configure function defined for $periph"
   fi
 done
-
+ 
 # Re-run default config to apply changes
 make $MAKE_OPTS olddefconfig
 make $MAKE_OPTS prepare
 make $MAKE_OPTS modules_prepare
 popd > /dev/null
-
+ 
 # Define compile functions for peripherals
 compile_pwm_pca9685() {
   echo "Compiling PWM PCA9685 module..."
   pushd "$KERNEL_SRC_DIR" > /dev/null
-  make $MAKE_OPTS drivers/pwm/pwm-pca9685.ko
+  make $MAKE_OPTS M=drivers/pwm modules
   cp drivers/pwm/pwm-pca9685.ko "$OUTDIR"
   popd > /dev/null
   echo "pwm-pca9685.ko has been copied to $OUTDIR"
 }
-
+ 
 compile_ads1015() {
   echo "Compiling ADS1015 ADC module..."
   pushd "$KERNEL_SRC_DIR" > /dev/null
-  make $MAKE_OPTS drivers/iio/adc/ti-ads1015.ko
+  make $MAKE_OPTS M=drivers/iio/adc modules
   cp drivers/iio/adc/ti-ads1015.ko "$OUTDIR"
   popd > /dev/null
   echo "ads1015.ko has been copied to $OUTDIR"
 }
-
+ 
 compile_sc16is7xx() {
   echo "Compiling SC16IS7XX UART module..."
   pushd "$KERNEL_SRC_DIR" > /dev/null
-  make $MAKE_OPTS drivers/tty/serial/sc16is7xx.ko
+  make $MAKE_OPTS M=drivers/tty/serial modules
   cp drivers/tty/serial/sc16is7xx.ko "$OUTDIR"
   popd > /dev/null
   echo "sc16is7xx.ko has been copied to $OUTDIR"
 }
-
+ 
 # Build each selected peripheral
 for periph in "${SELECTED[@]}"; do
   build_fn="compile_${periph//-/_}"
@@ -218,5 +246,6 @@ for periph in "${SELECTED[@]}"; do
     echo "Warning: No compile function defined for $periph"
   fi
 done
-
+ 
 echo "All done."
+ 
